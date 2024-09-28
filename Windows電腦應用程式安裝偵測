@@ -51,5 +51,6 @@ def save_to_excel(programs, file_name="installed_programs.xlsx"):
 
 if __name__ == "__main__":
     installed_programs = get_installed_programs()
-    save_to_excel(installed_programs)
-    print("已安裝的應用程式資訊已保存到 Excel 文件中。")
+# Please change 'YourUserName' in file path
+    save_to_excel(installed_programs, 'C:\\Users\\YourUserName\\Documents\\installed_programs.xlsx')
+    print("Installed application information saved to Excel where in your file path.")

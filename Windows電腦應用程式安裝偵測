@@ -1,0 +1,55 @@
+import winreg
+import pandas as pd
+
+def get_installed_programs():
+    programs = []
+    reg_paths = [
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
+        (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall")
+    ]
+    
+    for reg_root, reg_path in reg_paths:
+        reg_key = winreg.OpenKey(reg_root, reg_path)
+        
+        for i in range(winreg.QueryInfoKey(reg_key)[0]):
+            sub_key_name = winreg.EnumKey(reg_key, i)
+            sub_key_path = f"{reg_path}\\{sub_key_name}"
+            sub_key = winreg.OpenKey(reg_root, sub_key_path)
+            
+            try:
+                display_name = winreg.QueryValueEx(sub_key, "DisplayName")[0]
+            except FileNotFoundError:
+                display_name = None
+            
+            try:
+                display_version = winreg.QueryValueEx(sub_key, "DisplayVersion")[0]
+            except FileNotFoundError:
+                display_version = None
+            
+            try:
+                install_date = winreg.QueryValueEx(sub_key, "InstallDate")[0]
+            except FileNotFoundError:
+                install_date = None
+            
+            if display_name:
+                programs.append({
+                    "name": display_name,
+                    "version": display_version,
+                    "install_date": install_date
+                })
+            
+            winreg.CloseKey(sub_key)
+        
+        winreg.CloseKey(reg_key)
+    
+    return programs
+
+def save_to_excel(programs, file_name="installed_programs.xlsx"):
+    df = pd.DataFrame(programs)
+    df.to_excel(file_name, index=False)
+
+if __name__ == "__main__":
+    installed_programs = get_installed_programs()
+    save_to_excel(installed_programs)
+    print("已安裝的應用程式資訊已保存到 Excel 文件中。")

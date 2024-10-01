@@ -1,5 +1,9 @@
 import winreg
 import pandas as pd
+import subprocess
+import json
+from datetime import datetime
+import psutil  # 引入 psutil 模組
 
 def get_installed_programs():
     programs = []
@@ -45,12 +49,79 @@ def get_installed_programs():
     
     return programs
 
-def save_to_excel(programs, file_name="installed_programs.xlsx"):
+def get_microsoft_store_programs():
+    command = ["powershell", "Get-AppxPackage | Select Name, PackageFullName, InstallDate | ConvertTo-Json"]
+    result = subprocess.run(command, capture_output=True, text=True)
+    
+    try:
+        store_programs = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        store_programs = []
+    
+    programs = []
+    for program in store_programs:
+        package_full_name = program.get("PackageFullName", "")
+        split_name_version = package_full_name.split('_')
+        if len(split_name_version) >= 2:
+            name = split_name_version[0]
+            version = split_name_version[1]
+        else:
+            name = program.get("Name", "")
+            version = None
+
+        programs.append({
+            "name": name,
+            "version": version,
+            "install_date": program.get("InstallDate")
+        })
+    
+    return programs
+
+def get_mac_address(interface_name):
+    """取得指定網路介面的 MAC 位址"""
+    addrs = psutil.net_if_addrs()
+    if interface_name in addrs:
+        for addr in addrs[interface_name]:
+            if addr.family == psutil.AF_LINK:
+                return addr.address
+    return None
+
+def get_current_mac_address():
+    """檢查是否使用 Wi-Fi，若無則使用有線網路的 MAC 地址"""
+    net_if_stats = psutil.net_if_stats()
+
+    # 檢查 Wi-Fi 是否在使用
+    wifi_interfaces = [iface for iface in net_if_stats if 'Wi-Fi' in iface or 'Wireless' in iface]
+    for wifi_iface in wifi_interfaces:
+        if net_if_stats[wifi_iface].isup:  # 檢查網卡是否啟用
+            return get_mac_address(wifi_iface)
+    
+    # 如果沒有 Wi-Fi，則使用有線網路
+    wired_interfaces = [iface for iface in net_if_stats if 'Ethernet' in iface or 'Local Area Connection' in iface]
+    for wired_iface in wired_interfaces:
+        if net_if_stats[wired_iface].isup:  # 檢查網卡是否啟用
+            return get_mac_address(wired_iface)
+
+    return None
+
+def save_to_excel(programs, file_name):
     df = pd.DataFrame(programs)
     df.to_excel(file_name, index=False)
 
 if __name__ == "__main__":
     installed_programs = get_installed_programs()
-# Please change 'YourUserName' in file path
-    save_to_excel(installed_programs, 'C:\\Users\\YourUserName\\Documents\\installed_programs.xlsx')
-    print("Installed application information saved to Excel where in your file path.")
+    store_programs = get_microsoft_store_programs()
+    
+    all_programs = installed_programs + store_programs
+    
+    # 取得當前的日期和時間
+    current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # 取得當前正在使用的網路介面的 MAC 位址
+    mac_address = get_current_mac_address()
+    mac_address_cleaned = mac_address.replace(":", "") if mac_address else "unknown_mac"
+    
+    # 組合 MAC 位址與時間戳來作為檔案名稱
+    file_name = f'C:\\Users\\T14 Gen 3\\Documents\\{mac_address_cleaned}_installed_programs_{current_time}.xlsx'
+    save_to_excel(all_programs, file_name)
+    print(f'所有安裝的應用程式資訊已保存到 Excel 文件中：{file_name}')
